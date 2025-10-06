@@ -78,7 +78,7 @@ def search_hadiths(keywords, max_results=3):
             hadiths = bukhari_data.get('hadiths', [])
             
             # البحث في الأحاديث
-            for hadith in hadiths:
+            for hadith in hadiths[:1000]:
                 hadith_text = hadith.get('text', '').lower()
                 
                 # تحقق من وجود أي من الكلمات المفتاحية
