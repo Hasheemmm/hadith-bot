@@ -51,14 +51,14 @@ def ai_understand_query(user_message):
         response = gemini_model.generate_content(prompt)
         result_text = response.text.strip()
         
-        # تنظيف JSON من markdown
-        if "```
-            result_text = result_text.split("```json").split("```
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0].strip()
         elif "```" in result_text:
-            result_text = result_text.split("``````")[0].strip()
+            result_text = result_text.split("```")[1].strip()
         
         data = json.loads(result_text)
         return data
+
         
     except Exception as e:
         logger.error(f"خطأ في Gemini: {e}")
@@ -78,7 +78,7 @@ def search_hadiths(keywords, max_results=3):
             hadiths = bukhari_data.get('hadiths', [])
             
             # البحث في الأحاديث
-            for hadith in hadiths[:300]:  # البحث في أول 300 حديث
+            for hadith in hadiths[:300]:
                 hadith_text = hadith.get('text', '').lower()
                 
                 # تحقق من وجود أي من الكلمات المفتاحية
