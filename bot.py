@@ -13,13 +13,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ========== إعدادات البوت ==========
-TOKEN = '8376293916:AAEgNYjz2-3DBWj4GU0P_LcPkwAjCi_vhsE'
+# ========== إعدادات البوت (من المتغيرات البيئية) ==========
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("⚠️ لم يتم تعيين TELEGRAM_BOT_TOKEN في المتغيرات البيئية.")
 
-# Google Gemini API Key (ضعه في متغيرات البيئة في Render)
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'YOUR_KEY_HERE')
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("⚠️ لم يتم تعيين GEMINI_API_KEY في المتغيرات البيئية.")
+
 genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+gemini_model = genai.GenerativeModel("gemini-2.5-flash")
 
 # Hadith API
 HADITH_API_BASE = "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1"
@@ -59,7 +63,6 @@ def ai_understand_query(user_message):
         data = json.loads(result_text)
         return data
 
-        
     except Exception as e:
         logger.error(f"خطأ في Gemini: {e}")
         return {"keywords": [user_message], "intent": "بحث مباشر"}
@@ -83,10 +86,10 @@ def search_hadiths(keywords, max_results=3):
                 
                 # تحقق من وجود أي من الكلمات المفتاحية
                 found = any(
-    keyword.lower().replace('ة', 'ه').replace('أ', 'ا').replace('إ', 'ا') in 
-    hadith_text.replace('ة', 'ه').replace('أ', 'ا').replace('إ', 'ا')
-    for keyword in keywords if keyword
-)
+                    keyword.lower().replace('ة', 'ه').replace('أ', 'ا').replace('إ', 'ا') in 
+                    hadith_text.replace('ة', 'ه').replace('أ', 'ا').replace('إ', 'ا')
+                    for keyword in keywords if keyword
+                )
                 
                 if found:
                     results.append({
@@ -187,7 +190,7 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
 بمجرد إرسالك لكلمة واحدة سوف أقوم بإرسال الأحاديث التي تحتوي على هذه المفردة
 
 🧠 **التقنيات:**
-• Google Gemini 1.5 Flash
+• Google Gemini 2.5 Flash
 • Hadith API Database
 • Python + Telegram Bot API
 
