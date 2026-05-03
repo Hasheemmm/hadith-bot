@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Actions - Live Metrics App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="text-2xl font-bold text-gray-800">📊 Live Metrics</div>
+                <div class="space-x-4">
+                    <a href="/" class="text-gray-600 hover:text-blue-600">Dashboard</a>
+                    <a href="/experiments" class="text-gray-600 hover:text-blue-600">Experiments</a>
+                    <a href="/insights" class="text-gray-600 hover:text-blue-600">Insights</a>
+                    <a href="/actions" class="text-blue-600 font-semibold">Actions</a>
+                    <a href="/chat" class="text-gray-600 hover:text-blue-600">Analyst Chat</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">✅ Action Items</h1>
+            <button onclick="showNewActionForm()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                + New Action
+            </button>
+        </div>
+
+        <!-- New Action Form (hidden by default) -->
+        <div id="newActionForm" class="hidden bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">Create New Action</h2>
+            <form onsubmit="createAction(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Title</label>
+                    <input type="text" id="actionTitle" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea id="actionDesc" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Priority</label>
+                    <select id="actionPriority" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Create</button>
+                    <button type="button" onclick="hideNewActionForm()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Actions List -->
+        <div class="space-y-4" id="actionsList">
+            {% if actions %}
+                {% for action in actions|reverse %}
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-3">
+                                <h3 class="text-lg font-semibold text-gray-900">{{ action.title }}</h3>
+                                <span class="px-2 py-1 text-xs rounded {{ 'bg-red-100 text-red-800' if action.priority == 'high' else 'bg-yellow-100 text-yellow-800' if action.priority == 'medium' else 'bg-green-100 text-green-800' }}">
+                                    {{ action.priority|upper }}
+                                </span>
+                                <span class="px-2 py-1 text-xs rounded {{ 'bg-green-100 text-green-800' if action.status == 'completed' else 'bg-blue-100 text-blue-800' }}">
+                                    {{ action.status|upper }}
+                                </span>
+                            </div>
+                            <p class="mt-2 text-gray-600">{{ action.description }}</p>
+                            <p class="mt-2 text-xs text-gray-400">Created: {{ action.created_at[:10] if action.created_at else 'N/A' }}</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            {% if action.status != 'completed' %}
+                            <button onclick="updateAction({{ action.id }}, 'completed')" class="text-green-600 hover:text-green-800 text-sm">✓ Complete</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="bg-white rounded-lg shadow-md p-12 text-center text-gray-500">
+                No action items yet. Actions will be created automatically from insights or you can create them manually.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function showNewActionForm() {
+            document.getElementById('newActionForm').classList.remove('hidden');
+        }
+
+        function hideNewActionForm() {
+            document.getElementById('newActionForm').classList.add('hidden');
+        }
+
+        async function createAction(event) {
+            event.preventDefault();
+            
+            const title = document.getElementById('actionTitle').value;
+            const description = document.getElementById('actionDesc').value;
+            const priority = document.getElementById('actionPriority').value;
+
+            try {
+                const response = await fetch('/api/actions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, description, priority })
+                });
+
+                if (response.ok) {
+                    location.reload();
+                }
+            } catch (error) {
+                alert('Error creating action: ' + error.message);
+            }
+        }
+
+        async function updateAction(id, status) {
+            try {
+                await fetch(`/api/actions/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+                location.reload();
+            } catch (error) {
+                alert('Error updating action: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

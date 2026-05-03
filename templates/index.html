@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics Dashboard - Live Metrics App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .card { @apply bg-white rounded-lg shadow-md p-6; }
+        .metric-card { @apply bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-lg p-6 shadow-lg; }
+        .anomaly-high { @apply bg-red-100 border-l-4 border-red-500; }
+        .anomaly-medium { @apply bg-yellow-100 border-l-4 border-yellow-500; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="text-2xl font-bold text-gray-800">📊 Live Metrics</div>
+                <div class="space-x-4">
+                    <a href="/" class="text-blue-600 font-semibold">Dashboard</a>
+                    <a href="/experiments" class="text-gray-600 hover:text-blue-600">Experiments</a>
+                    <a href="/insights" class="text-gray-600 hover:text-blue-600">Insights</a>
+                    <a href="/actions" class="text-gray-600 hover:text-blue-600">Actions</a>
+                    <a href="/chat" class="text-gray-600 hover:text-blue-600">Analyst Chat</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">KPI Dashboard</h1>
+            <button onclick="syncData()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                🔄 Sync Data
+            </button>
+        </div>
+
+        <!-- Last Sync Info -->
+        <div class="mb-6 text-sm text-gray-600">
+            Last sync: <span id="lastSync">{{ last_sync or 'Never' }}</span>
+        </div>
+
+        <!-- Key Metrics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="metric-card">
+                <div class="text-sm opacity-80">Total Metrics</div>
+                <div class="text-3xl font-bold" id="totalMetrics">{{ metrics|length if metrics else 0 }}</div>
+            </div>
+            <div class="metric-card bg-gradient-to-br from-green-500 to-teal-600">
+                <div class="text-sm opacity-80">Active Experiments</div>
+                <div class="text-3xl font-bold">--</div>
+            </div>
+            <div class="metric-card bg-gradient-to-br from-orange-500 to-red-600">
+                <div class="text-sm opacity-80">Anomalies</div>
+                <div class="text-3xl font-bold" id="totalAnomalies">{{ anomalies|length if anomalies else 0 }}</div>
+            </div>
+            <div class="metric-card bg-gradient-to-br from-pink-500 to-rose-600">
+                <div class="text-sm opacity-80">Insights</div>
+                <div class="text-3xl font-bold">--</div>
+            </div>
+        </div>
+
+        <!-- Anomalies Section -->
+        {% if anomalies %}
+        <div class="card mb-8">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">⚠️ Recent Anomalies</h2>
+            <div class="space-y-3">
+                {% for anomaly in anomalies[-5:] %}
+                <div class="p-4 {{ 'anomaly-high' if anomaly.severity == 'high' else 'anomaly-medium' }} rounded">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="font-semibold text-gray-800">{{ anomaly.metric }}</div>
+                            <div class="text-sm text-gray-600">{{ anomaly.description }}</div>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded {{ 'bg-red-500 text-white' if anomaly.severity == 'high' else 'bg-yellow-500 text-white' }}">
+                            {{ anomaly.severity|upper }}
+                        </span>
+                    </div>
+                    <div class="mt-2 text-sm text-gray-700">💡 {{ anomaly.suggested_action }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="card">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Metrics Trend</h2>
+                <div id="metricsChart" class="h-64"></div>
+            </div>
+            <div class="card">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Anomaly Distribution</h2>
+                <div id="anomalyChart" class="h-64"></div>
+            </div>
+        </div>
+
+        <!-- Recent Metrics Table -->
+        <div class="card">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Recent Metrics</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="metricsTable">
+                        {% if metrics %}
+                            {% for metric in metrics[-10:] %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ metric.get('Metric', metric.get('metric', 'N/A')) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ metric.get('Value', metric.get('value', 'N/A')) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ metric.get('Timestamp', metric.get('timestamp', 'N/A')) }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="3" class="px-6 py-4 text-center text-gray-500">No metrics data available. Click "Sync Data" to load from Google Sheets.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sync data function
+        async function syncData() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Syncing...';
+            
+            try {
+                const response = await fetch('/api/sync', { method: 'POST' });
+                const data = await response.json();
+                
+                document.getElementById('lastSync').textContent = data.last_sync;
+                document.getElementById('totalMetrics').textContent = data.metrics_count;
+                document.getElementById('totalAnomalies').textContent = data.anomalies_count;
+                
+                alert(`Sync completed!\nMetrics: ${data.metrics_count}\nExperiments: ${data.experiments_count}\nAnomalies: ${data.anomalies_count}`);
+            } catch (error) {
+                alert('Sync failed: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 Sync Data';
+            }
+        }
+
+        // Initialize charts with sample data
+        document.addEventListener('DOMContentLoaded', function() {
+            // Metrics trend chart
+            const metricsTrace = {
+                x: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                y: [100, 120, 110, 130, 125, 140],
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Sample Metric'
+            };
+            
+            const layout = {
+                title: '',
+                showlegend: true,
+                height: 250,
+                margin: { t: 30, b: 30, l: 40, r: 20 }
+            };
+            
+            Plotly.newPlot('metricsChart', [metricsTrace], layout);
+            
+            // Anomaly distribution chart
+            const anomalyData = [{
+                values: [3, 5, 2],
+                labels: ['High', 'Medium', 'Low'],
+                type: 'pie'
+            }];
+            
+            const anomalyLayout = {
+                title: '',
+                height: 250,
+                margin: { t: 30, b: 30, l: 20, r: 20 }
+            };
+            
+            Plotly.newPlot('anomalyChart', anomalyData, anomalyLayout);
+        });
+    </script>
+</body>
+</html>
